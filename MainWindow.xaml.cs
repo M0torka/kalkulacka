@@ -3,6 +3,9 @@ using System.Globalization;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Media;
+using System.Windows.Shapes;
+using System.Windows.Media.Animation;
+using System.Collections.Generic;
 
 namespace kalkulacka
 {
@@ -13,9 +16,14 @@ namespace kalkulacka
         private bool _isNewEntry = true;
         private bool _isDark = false;
 
+        // Particles
+        private readonly List<Particle> _particles = new();
+        private readonly Random _rand = new();
+
         public MainWindow()
         {
             InitializeComponent();
+            CompositionTarget.Rendering += CompositionTarget_Rendering;
         }
 
         private void Number_Click(object sender, RoutedEventArgs e)
@@ -147,6 +155,17 @@ namespace kalkulacka
 
         private void DarkMode_Click(object sender, RoutedEventArgs e)
         {
+            // pulse animation
+            if (DarkModeButton.RenderTransform is ScaleTransform s)
+            {
+                var anim = new DoubleAnimation(1, 1.2, TimeSpan.FromMilliseconds(120)) { AutoReverse = true };
+                s.BeginAnimation(ScaleTransform.ScaleXProperty, anim);
+                s.BeginAnimation(ScaleTransform.ScaleYProperty, anim);
+            }
+
+            // spawn particles
+            SpawnParticles();
+
             _isDark = !_isDark;
 
             if (_isDark)
@@ -177,9 +196,126 @@ namespace kalkulacka
             Foreground = (Brush)Resources["AppForegroundBrush"];
             Display.Background = (Brush)Resources["DisplayBackgroundBrush"];
             Display.Foreground = (Brush)Resources["DisplayForegroundBrush"];
+        }
 
-            // Update button backgrounds/foregrounds by forcing style re-evaluation
-            // (Iterate visual tree could be used, but updating app-level resources is enough since Buttons use DynamicResource)
+        // --- Particles implementation ---
+        private void SpawnParticles()
+        {
+            // position of button center in Window coordinates
+            var btnPos = DarkModeButton.TransformToAncestor(this).Transform(new Point(0, 0));
+            var btnCenter = new Point(btnPos.X + DarkModeButton.ActualWidth / 2, btnPos.Y + DarkModeButton.ActualHeight / 2);
+
+            int count = _rand.Next(7, 11);
+            for (int i = 0; i < count; i++)
+            {
+                var ellipse = new Ellipse
+                {
+                    Width = _rand.Next(6, 12),
+                    Height = _rand.Next(6, 12),
+                    Fill = new SolidColorBrush(RandomParticleColor()),
+                    Opacity = 1
+                };
+
+                // starting position (convert window coords to canvas coords)
+                Canvas.SetLeft(ellipse, btnCenter.X - ellipse.Width / 2);
+                Canvas.SetTop(ellipse, btnCenter.Y - ellipse.Height / 2);
+                ParticleCanvas.Children.Add(ellipse);
+
+                // initial velocity (random outward)
+                double angle = (_rand.NextDouble() * Math.PI) - Math.PI / 2; // -90deg +- 90deg so mostly upwards
+                double speed = 120 + _rand.NextDouble() * 180; // px/s
+                var vx = Math.Cos(angle) * speed;
+                var vy = Math.Sin(angle) * speed;
+
+                var p = new Particle
+                {
+                    Shape = ellipse,
+                    X = btnCenter.X - ellipse.Width / 2,
+                    Y = btnCenter.Y - ellipse.Height / 2,
+                    VX = vx,
+                    VY = vy,
+                    Life = 2.5 // seconds
+                };
+
+                _particles.Add(p);
+            }
+        }
+
+        private Color RandomParticleColor()
+        {
+            var pick = _rand.Next(3);
+            return pick switch
+            {
+                0 => Color.FromRgb(255, 200, 0), // yellow
+                1 => Color.FromRgb(255, 120, 0), // orange
+                _ => Color.FromRgb(220, 30, 30), // red
+            };
+        }
+
+        private DateTime _lastFrame = DateTime.Now;
+        private void CompositionTarget_Rendering(object? sender, EventArgs e)
+        {
+            var now = DateTime.Now;
+            var dt = (now - _lastFrame).TotalSeconds;
+            _lastFrame = now;
+            if (dt <= 0) return;
+
+            // simple gravity constant
+            const double gravity = 600; // px/s^2
+            const double airResistance = 0.98; // per second factor (applied multiplicatively per frame)
+
+            for (int i = _particles.Count - 1; i >= 0; i--)
+            {
+                var p = _particles[i];
+                p.VY += gravity * dt;
+                p.X += p.VX * dt;
+                p.Y += p.VY * dt;
+
+                // simple ground collision at bottom of window (bounce a bit and lose energy)
+                double ground = ActualHeight - 10; // leave margin
+                if (p.Y > ground)
+                {
+                    p.Y = ground;
+                    p.VY = -p.VY * 0.35; // bounce with energy loss
+                    p.VX *= 0.6; // slow down horizontally
+
+                    // small friction, if very slow remove
+                    if (Math.Abs(p.VY) < 30 && Math.Abs(p.VX) < 10)
+                    {
+                        p.Life = 0.1; // let fade out quickly
+                    }
+                }
+
+                // apply air resistance
+                var resistance = Math.Pow(airResistance, dt);
+                p.VX *= resistance;
+                p.VY *= resistance;
+
+                // update opacity based on life
+                p.Life -= dt;
+                double opacity = Math.Max(0, Math.Min(1, p.Life / 2.5));
+
+                Canvas.SetLeft(p.Shape, p.X);
+                Canvas.SetTop(p.Shape, p.Y);
+                p.Shape.Opacity = opacity;
+
+                if (p.Life <= 0 || p.Opacity <= 0.02)
+                {
+                    ParticleCanvas.Children.Remove(p.Shape);
+                    _particles.RemoveAt(i);
+                }
+            }
+        }
+
+        private class Particle
+        {
+            public Shape? Shape;
+            public double X;
+            public double Y;
+            public double VX;
+            public double VY;
+            public double Life;
+            public double Opacity { get; set; } = 1;
         }
     }
 }

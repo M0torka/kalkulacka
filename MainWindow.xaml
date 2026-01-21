@@ -35,7 +35,12 @@
                 <ColumnDefinition Width="*" />
             </Grid.ColumnDefinitions>
 
-            <Button x:Name="DarkModeButton" Content="Dark Mode" Click="DarkMode_Click" Grid.Column="0" VerticalAlignment="Center" />
+            <Button x:Name="DarkModeButton" Content="Dark Mode" Click="DarkMode_Click" Grid.Column="0" VerticalAlignment="Center"
+                    RenderTransformOrigin="0.5,0.5">
+                <Button.RenderTransform>
+                    <ScaleTransform ScaleX="1" ScaleY="1" />
+                </Button.RenderTransform>
+            </Button>
 
             <TextBox x:Name="Display"
                      Grid.Column="1"
@@ -81,5 +86,8 @@
             <Button Content="." Click="Decimal_Click" />
             <Button Content="=" Click="Equals_Click" />
         </UniformGrid>
+
+        <!-- Particle canvas overlay (topmost) -->
+        <Canvas x:Name="ParticleCanvas" IsHitTestVisible="False" Panel.ZIndex="99" />
     </Grid>
 </Window>
