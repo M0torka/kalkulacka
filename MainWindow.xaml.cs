@@ -2,6 +2,7 @@
 using System.Globalization;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Media;
 
 namespace kalkulacka
 {
@@ -10,6 +11,7 @@ namespace kalkulacka
         private double? _accumulator = null;
         private string? _pendingOperator = null;
         private bool _isNewEntry = true;
+        private bool _isDark = false;
 
         public MainWindow()
         {
@@ -141,6 +143,43 @@ namespace kalkulacka
                 "/" => right == 0 ? double.NaN : left / right,
                 _ => right
             };
+        }
+
+        private void DarkMode_Click(object sender, RoutedEventArgs e)
+        {
+            _isDark = !_isDark;
+
+            if (_isDark)
+            {
+                // dark brushes
+                Resources["AppBackgroundBrush"] = new SolidColorBrush(Color.FromRgb(30, 30, 30));
+                Resources["AppForegroundBrush"] = new SolidColorBrush(Colors.White);
+                Resources["ButtonBackgroundBrush"] = new SolidColorBrush(Color.FromRgb(45, 45, 45));
+                Resources["ButtonForegroundBrush"] = new SolidColorBrush(Colors.White);
+                Resources["DisplayBackgroundBrush"] = new SolidColorBrush(Color.FromRgb(20, 20, 20));
+                Resources["DisplayForegroundBrush"] = new SolidColorBrush(Colors.White);
+                DarkModeButton.Content = "Light Mode";
+            }
+            else
+            {
+                // light brushes
+                Resources["AppBackgroundBrush"] = new SolidColorBrush(Colors.White);
+                Resources["AppForegroundBrush"] = new SolidColorBrush(Colors.Black);
+                Resources["ButtonBackgroundBrush"] = new SolidColorBrush(Color.FromRgb(240, 240, 240));
+                Resources["ButtonForegroundBrush"] = new SolidColorBrush(Colors.Black);
+                Resources["DisplayBackgroundBrush"] = new SolidColorBrush(Colors.White);
+                Resources["DisplayForegroundBrush"] = new SolidColorBrush(Colors.Black);
+                DarkModeButton.Content = "Dark Mode";
+            }
+
+            // Apply foreground/background to window and display explicitly
+            Background = (Brush)Resources["AppBackgroundBrush"];
+            Foreground = (Brush)Resources["AppForegroundBrush"];
+            Display.Background = (Brush)Resources["DisplayBackgroundBrush"];
+            Display.Foreground = (Brush)Resources["DisplayForegroundBrush"];
+
+            // Update button backgrounds/foregrounds by forcing style re-evaluation
+            // (Iterate visual tree could be used, but updating app-level resources is enough since Buttons use DynamicResource)
         }
     }
 }
