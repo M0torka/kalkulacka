@@ -118,26 +118,15 @@ namespace kalkulacka
             var right = ParseDisplay();
             var result = Calculate(_accumulator ?? right, right, _pendingOperator ?? "+");
 
-            // show full expression briefly, then the result
-            _expression = _expression + (string.IsNullOrEmpty(_currentInput) ? string.Empty : " " + _currentInput);
-
+            // Immediately show only the result and clear the expression/history
             _currentInput = FormatNumber(result);
-            Display.Text = _expression + " ="; // show expression with equals
+            _expression = string.Empty;
+            Display.Text = _currentInput;
 
-            // reset calc state: show result as current input
+            // reset calc state: result becomes the current input
             _accumulator = null;
             _pendingOperator = null;
             _isNewEntry = true;
-
-            // after a short delay, show result (user expects to see result)
-            var showResultTimer = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromMilliseconds(150) };
-            showResultTimer.Tick += (s, ev) =>
-            {
-                showResultTimer.Stop();
-                UpdateDisplayText();
-                _expression = string.Empty; // clear history after showing result
-            };
-            showResultTimer.Start();
         }
 
         private void Clear_Click(object sender, RoutedEventArgs e)
