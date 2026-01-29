@@ -11,13 +11,18 @@ namespace kalkulacka
 {
     public partial class MainWindow : Window
     {
+        // previous fields
         private double? _accumulator = null;
         private string? _pendingOperator = null;
         private bool _isNewEntry = true;
         private bool _isDark = false;
 
+        // New: store entire expression as lists so we evaluate only on '='
+        private readonly List<double> _numbers = new();
+        private readonly List<string> _operators = new();
+
         // New: expression/history and current input
-        private string _expression = string.Empty; // e.g. "8 +"
+        private string _expression = string.Empty; // textual form
         private string _currentInput = "0";      // the number being typed
 
         // Particles
@@ -79,31 +84,41 @@ namespace kalkulacka
 
             var op = btn.Tag?.ToString() ?? btn.Content.ToString();
 
-            // If we have a current input, push it to accumulator or calculate with pending operator
-            if (!_isNewEntry)
+            // If user has typed a number, append it to numbers
+            if (!string.IsNullOrEmpty(_currentInput))
             {
-                var value = ParseDisplay();
-                if (_accumulator == null)
-                    _accumulator = value;
-                else if (_pendingOperator != null)
-                    _accumulator = Calculate(_accumulator.Value, value, _pendingOperator);
+                if (double.TryParse(_currentInput, NumberStyles.Float, CultureInfo.InvariantCulture, out var n))
+                {
+                    _numbers.Add(n);
+                }
+                else
+                {
+                    // fallback try current culture
+                    double.TryParse(_currentInput, out n);
+                    _numbers.Add(n);
+                }
             }
 
-            _pendingOperator = op;
-            _isNewEntry = true;
-
-            // build expression string from accumulator and operator
-            if (_accumulator != null)
+            // If user pressed operator multiple times, replace last operator
+            if (_operators.Count > 0 && _isNewEntry)
             {
-                _expression = FormatNumber(_accumulator.Value) + " " + op;
-                _currentInput = string.Empty;
+                _operators[_operators.Count - 1] = op;
             }
             else
             {
-                // fallback: use whatever was current
-                _expression = _currentInput + " " + op;
-                _currentInput = string.Empty;
+                _operators.Add(op);
             }
+
+            // build expression string
+            _expression = BuildExpressionString();
+
+            // prepare for next number
+            _currentInput = string.Empty;
+            _isNewEntry = true;
+
+            // clear legacy accumulator/pending
+            _accumulator = null;
+            _pendingOperator = null;
 
             UpdateDisplayText();
         }
@@ -112,21 +127,59 @@ namespace kalkulacka
         {
             if (sender is Button b) TriggerButtonFeedback(b);
 
-            if (_pendingOperator == null && _accumulator == null)
+            // nothing to compute
+            if (string.IsNullOrEmpty(_currentInput) && _numbers.Count == 0)
                 return;
 
-            var right = ParseDisplay();
-            var result = Calculate(_accumulator ?? right, right, _pendingOperator ?? "+");
+            // append last typed number if any
+            if (!string.IsNullOrEmpty(_currentInput))
+            {
+                if (double.TryParse(_currentInput, NumberStyles.Float, CultureInfo.InvariantCulture, out var n))
+                    _numbers.Add(n);
+                else
+                {
+                    double.TryParse(_currentInput, out n);
+                    _numbers.Add(n);
+                }
+            }
 
-            // Immediately show only the result and clear the expression/history
+            // if there are no operators, just show the number
+            if (_operators.Count == 0)
+            {
+                if (_numbers.Count > 0)
+                    _currentInput = FormatNumber(_numbers[^1]);
+
+                _expression = string.Empty;
+                _numbers.Clear();
+                _operators.Clear();
+                _isNewEntry = true;
+                UpdateDisplayText();
+                return;
+            }
+
+            // Evaluate left-to-right
+            double result = _numbers.Count > 0 ? _numbers[0] : 0;
+            for (int i = 0; i < _operators.Count; i++)
+            {
+                double right = (i + 1 < _numbers.Count) ? _numbers[i + 1] : 0;
+                var op = _operators[i];
+                result = Calculate(result, right, op);
+            }
+
+            // show only result
             _currentInput = FormatNumber(result);
             _expression = string.Empty;
-            Display.Text = _currentInput;
 
-            // reset calc state: result becomes the current input
+            // reset lists
+            _numbers.Clear();
+            _operators.Clear();
+
+            // reset calc state
             _accumulator = null;
             _pendingOperator = null;
             _isNewEntry = true;
+
+            UpdateDisplayText();
         }
 
         private void Clear_Click(object sender, RoutedEventArgs e)
@@ -135,6 +188,8 @@ namespace kalkulacka
 
             _currentInput = "0";
             _expression = string.Empty;
+            _numbers.Clear();
+            _operators.Clear();
             _accumulator = null;
             _pendingOperator = null;
             _isNewEntry = true;
@@ -192,6 +247,27 @@ namespace kalkulacka
                 _currentInput = FormatNumber(_accumulator.Value);
                 UpdateDisplayText();
             }
+        }
+
+        // helper: build expression string from numbers/operators
+        private string BuildExpressionString()
+        {
+            var parts = new List<string>();
+            int ncount = _numbers.Count;
+            for (int i = 0; i < ncount; i++)
+            {
+                parts.Add(FormatNumber(_numbers[i]));
+                if (i < _operators.Count)
+                    parts.Add(_operators[i]);
+            }
+
+            // if there's no trailing number but there's a pending operator, include it
+            if (_numbers.Count == 0 && _operators.Count > 0)
+            {
+                parts.Add(_operators[0]);
+            }
+
+            return string.Join(" ", parts);
         }
 
         // new helper: set Display.Text according to expression + current input
