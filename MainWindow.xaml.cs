@@ -29,6 +29,10 @@ namespace kalkulacka
         private void Number_Click(object sender, RoutedEventArgs e)
         {
             if (sender is not Button btn) return;
+
+            // feedback
+            TriggerButtonFeedback(btn);
+
             var digit = btn.Content.ToString() ?? "";
             if (_isNewEntry || Display.Text == "0")
             {
@@ -43,6 +47,8 @@ namespace kalkulacka
 
         private void Decimal_Click(object sender, RoutedEventArgs e)
         {
+            if (sender is Button b) TriggerButtonFeedback(b);
+
             if (_isNewEntry)
             {
                 Display.Text = "0.";
@@ -57,6 +63,10 @@ namespace kalkulacka
         private void Operator_Click(object sender, RoutedEventArgs e)
         {
             if (sender is not Button btn) return;
+
+            // feedback
+            TriggerButtonFeedback(btn);
+
             var op = btn.Tag?.ToString() ?? btn.Content.ToString();
 
             if (!_isNewEntry)
@@ -74,6 +84,8 @@ namespace kalkulacka
 
         private void Equals_Click(object sender, RoutedEventArgs e)
         {
+            if (sender is Button b) TriggerButtonFeedback(b);
+
             if (_pendingOperator == null || _accumulator == null)
                 return;
 
@@ -87,6 +99,8 @@ namespace kalkulacka
 
         private void Clear_Click(object sender, RoutedEventArgs e)
         {
+            if (sender is Button b) TriggerButtonFeedback(b);
+
             Display.Text = "0";
             _accumulator = null;
             _pendingOperator = null;
@@ -95,6 +109,8 @@ namespace kalkulacka
 
         private void Backspace_Click(object sender, RoutedEventArgs e)
         {
+            if (sender is Button b) TriggerButtonFeedback(b);
+
             if (_isNewEntry)
             {
                 Display.Text = "0";
@@ -114,6 +130,8 @@ namespace kalkulacka
 
         private void Negate_Click(object sender, RoutedEventArgs e)
         {
+            if (sender is Button b) TriggerButtonFeedback(b);
+
             var value = ParseDisplay();
             value = -value;
             Display.Text = FormatNumber(value);
@@ -155,16 +173,7 @@ namespace kalkulacka
 
         private void DarkMode_Click(object sender, RoutedEventArgs e)
         {
-            // pulse animation
-            if (DarkModeButton.RenderTransform is ScaleTransform s)
-            {
-                var anim = new DoubleAnimation(1, 1.2, TimeSpan.FromMilliseconds(120)) { AutoReverse = true };
-                s.BeginAnimation(ScaleTransform.ScaleXProperty, anim);
-                s.BeginAnimation(ScaleTransform.ScaleYProperty, anim);
-            }
-
-            // spawn particles
-            SpawnParticles();
+            if (sender is Button btn) TriggerButtonFeedback(btn);
 
             _isDark = !_isDark;
 
@@ -199,11 +208,28 @@ namespace kalkulacka
         }
 
         // --- Particles implementation ---
-        private void SpawnParticles()
+        private void TriggerButtonFeedback(Button btn)
+        {
+            // ensure each button has its own ScaleTransform
+            if (btn.RenderTransform is not ScaleTransform s)
+            {
+                s = new ScaleTransform(1, 1);
+                btn.RenderTransform = s;
+                btn.RenderTransformOrigin = new Point(0.5, 0.5);
+            }
+
+            var anim = new DoubleAnimation(1, 1.2, TimeSpan.FromMilliseconds(120)) { AutoReverse = true };
+            s.BeginAnimation(ScaleTransform.ScaleXProperty, anim);
+            s.BeginAnimation(ScaleTransform.ScaleYProperty, anim);
+
+            SpawnParticles(btn);
+        }
+
+        private void SpawnParticles(Button source)
         {
             // position of button center in Window coordinates
-            var btnPos = DarkModeButton.TransformToAncestor(this).Transform(new Point(0, 0));
-            var btnCenter = new Point(btnPos.X + DarkModeButton.ActualWidth / 2, btnPos.Y + DarkModeButton.ActualHeight / 2);
+            var btnPos = source.TransformToAncestor(this).Transform(new Point(0, 0));
+            var btnCenter = new Point(btnPos.X + source.ActualWidth / 2, btnPos.Y + source.ActualHeight / 2);
 
             int count = _rand.Next(7, 11);
             for (int i = 0; i < count; i++)
