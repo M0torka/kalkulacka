@@ -16,6 +16,10 @@ namespace kalkulacka
         private bool _isNewEntry = true;
         private bool _isDark = false;
 
+        // New: expression/history and current input
+        private string _expression = string.Empty; // e.g. "8 +"
+        private string _currentInput = "0";      // the number being typed
+
         // Particles
         private readonly List<Particle> _particles = new();
         private readonly Random _rand = new();
@@ -24,6 +28,7 @@ namespace kalkulacka
         {
             InitializeComponent();
             CompositionTarget.Rendering += CompositionTarget_Rendering;
+            UpdateDisplayText();
         }
 
         private void Number_Click(object sender, RoutedEventArgs e)
@@ -34,15 +39,17 @@ namespace kalkulacka
             TriggerButtonFeedback(btn);
 
             var digit = btn.Content.ToString() ?? "";
-            if (_isNewEntry || Display.Text == "0")
+            if (_isNewEntry || _currentInput == "0")
             {
-                Display.Text = digit;
+                _currentInput = digit;
                 _isNewEntry = false;
             }
             else
             {
-                Display.Text += digit;
+                _currentInput += digit;
             }
+
+            UpdateDisplayText();
         }
 
         private void Decimal_Click(object sender, RoutedEventArgs e)
@@ -51,13 +58,16 @@ namespace kalkulacka
 
             if (_isNewEntry)
             {
-                Display.Text = "0.";
+                _currentInput = "0.";
                 _isNewEntry = false;
+                UpdateDisplayText();
                 return;
             }
 
-            if (!Display.Text.Contains("."))
-                Display.Text += ".";
+            if (!_currentInput.Contains("."))
+                _currentInput += ".";
+
+            UpdateDisplayText();
         }
 
         private void Operator_Click(object sender, RoutedEventArgs e)
@@ -69,42 +79,77 @@ namespace kalkulacka
 
             var op = btn.Tag?.ToString() ?? btn.Content.ToString();
 
+            // If we have a current input, push it to accumulator or calculate with pending operator
             if (!_isNewEntry)
             {
+                var value = ParseDisplay();
                 if (_accumulator == null)
-                    _accumulator = ParseDisplay();
+                    _accumulator = value;
                 else if (_pendingOperator != null)
-                    _accumulator = Calculate(_accumulator.Value, ParseDisplay(), _pendingOperator);
+                    _accumulator = Calculate(_accumulator.Value, value, _pendingOperator);
             }
 
             _pendingOperator = op;
             _isNewEntry = true;
-            UpdateDisplayFromAccumulator();
+
+            // build expression string from accumulator and operator
+            if (_accumulator != null)
+            {
+                _expression = FormatNumber(_accumulator.Value) + " " + op;
+                _currentInput = string.Empty;
+            }
+            else
+            {
+                // fallback: use whatever was current
+                _expression = _currentInput + " " + op;
+                _currentInput = string.Empty;
+            }
+
+            UpdateDisplayText();
         }
 
         private void Equals_Click(object sender, RoutedEventArgs e)
         {
             if (sender is Button b) TriggerButtonFeedback(b);
 
-            if (_pendingOperator == null || _accumulator == null)
+            if (_pendingOperator == null && _accumulator == null)
                 return;
 
             var right = ParseDisplay();
-            var result = Calculate(_accumulator.Value, right, _pendingOperator);
-            Display.Text = FormatNumber(result);
+            var result = Calculate(_accumulator ?? right, right, _pendingOperator ?? "+");
+
+            // show full expression briefly, then the result
+            _expression = _expression + (string.IsNullOrEmpty(_currentInput) ? string.Empty : " " + _currentInput);
+
+            _currentInput = FormatNumber(result);
+            Display.Text = _expression + " ="; // show expression with equals
+
+            // reset calc state: show result as current input
             _accumulator = null;
             _pendingOperator = null;
             _isNewEntry = true;
+
+            // after a short delay, show result (user expects to see result)
+            var showResultTimer = new System.Windows.Threading.DispatcherTimer { Interval = TimeSpan.FromMilliseconds(150) };
+            showResultTimer.Tick += (s, ev) =>
+            {
+                showResultTimer.Stop();
+                UpdateDisplayText();
+                _expression = string.Empty; // clear history after showing result
+            };
+            showResultTimer.Start();
         }
 
         private void Clear_Click(object sender, RoutedEventArgs e)
         {
             if (sender is Button b) TriggerButtonFeedback(b);
 
-            Display.Text = "0";
+            _currentInput = "0";
+            _expression = string.Empty;
             _accumulator = null;
             _pendingOperator = null;
             _isNewEntry = true;
+            UpdateDisplayText();
         }
 
         private void Backspace_Click(object sender, RoutedEventArgs e)
@@ -113,19 +158,22 @@ namespace kalkulacka
 
             if (_isNewEntry)
             {
-                Display.Text = "0";
+                _currentInput = "0";
+                UpdateDisplayText();
                 return;
             }
 
-            if (Display.Text.Length <= 1)
+            if (string.IsNullOrEmpty(_currentInput) || _currentInput.Length <= 1)
             {
-                Display.Text = "0";
+                _currentInput = "0";
                 _isNewEntry = true;
             }
             else
             {
-                Display.Text = Display.Text[..^1];
+                _currentInput = _currentInput[..^1];
             }
+
+            UpdateDisplayText();
         }
 
         private void Negate_Click(object sender, RoutedEventArgs e)
@@ -134,23 +182,43 @@ namespace kalkulacka
 
             var value = ParseDisplay();
             value = -value;
-            Display.Text = FormatNumber(value);
+            _currentInput = FormatNumber(value);
+            UpdateDisplayText();
         }
 
         private double ParseDisplay()
         {
-            if (double.TryParse(Display.Text, NumberStyles.Float, CultureInfo.InvariantCulture, out var v))
+            if (double.TryParse(_currentInput, NumberStyles.Float, CultureInfo.InvariantCulture, out var v))
                 return v;
 
             // Fallback: try current culture
-            double.TryParse(Display.Text, out v);
+            double.TryParse(_currentInput, out v);
             return v;
         }
 
         private void UpdateDisplayFromAccumulator()
         {
             if (_accumulator != null)
-                Display.Text = FormatNumber(_accumulator.Value);
+            {
+                _currentInput = FormatNumber(_accumulator.Value);
+                UpdateDisplayText();
+            }
+        }
+
+        // new helper: set Display.Text according to expression + current input
+        private void UpdateDisplayText()
+        {
+            if (!string.IsNullOrEmpty(_expression))
+            {
+                if (string.IsNullOrEmpty(_currentInput))
+                    Display.Text = _expression;
+                else
+                    Display.Text = _expression + " " + _currentInput;
+            }
+            else
+            {
+                Display.Text = string.IsNullOrEmpty(_currentInput) ? "0" : _currentInput;
+            }
         }
 
         private static string FormatNumber(double value)
