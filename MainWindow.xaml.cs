@@ -248,7 +248,8 @@ namespace kalkulacka
                 ParticleCanvas.Children.Add(ellipse);
 
                 // initial velocity (random outward)
-                double angle = (_rand.NextDouble() * Math.PI) - Math.PI / 2; // -90deg +- 90deg so mostly upwards
+                // pick a uniform direction around the full circle so particles fly in all directions
+                double angle = _rand.NextDouble() * 2 * Math.PI; // 0..360 degrees
                 double speed = 120 + _rand.NextDouble() * 180; // px/s
                 var vx = Math.Cos(angle) * speed;
                 var vy = Math.Sin(angle) * speed;
