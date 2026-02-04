@@ -22,7 +22,8 @@
         </Style>
     </Window.Resources>
 
-    <Grid Margin="10">
+    <!-- Give the main grid a name so we can apply a TranslateTransform for shaking -->
+    <Grid x:Name="MainGrid" Margin="10">
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto"/>
             <RowDefinition Height="*"/>

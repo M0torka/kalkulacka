@@ -356,6 +356,9 @@ namespace kalkulacka
             s.BeginAnimation(ScaleTransform.ScaleYProperty, anim);
 
             SpawnParticles(btn);
+
+            // shake the entire window contents
+            ShakeWindow();
         }
 
         private void SpawnParticles(Button source)
@@ -476,6 +479,34 @@ namespace kalkulacka
             public double VY;
             public double Life;
             public double Opacity { get; set; } = 1;
+        }
+
+        private void ShakeWindow()
+        {
+            // ensure MainGrid has a TranslateTransform so we can animate it
+            if (MainGrid == null) return; // safety
+
+            if (MainGrid.RenderTransform is not TranslateTransform tt)
+            {
+                tt = new TranslateTransform(0, 0);
+                MainGrid.RenderTransform = tt;
+            }
+
+            var duration = TimeSpan.FromMilliseconds(300);
+
+            // animate X with key frames to simulate shake
+            var keyFrames = new DoubleAnimationUsingKeyFrames { Duration = duration };
+            keyFrames.KeyFrames.Add(new EasingDoubleKeyFrame(0, KeyTime.FromPercent(0.0)));
+            keyFrames.KeyFrames.Add(new EasingDoubleKeyFrame(-8, KeyTime.FromPercent(0.1)));
+            keyFrames.KeyFrames.Add(new EasingDoubleKeyFrame(8, KeyTime.FromPercent(0.2)));
+            keyFrames.KeyFrames.Add(new EasingDoubleKeyFrame(-6, KeyTime.FromPercent(0.3)));
+            keyFrames.KeyFrames.Add(new EasingDoubleKeyFrame(6, KeyTime.FromPercent(0.4)));
+            keyFrames.KeyFrames.Add(new EasingDoubleKeyFrame(-4, KeyTime.FromPercent(0.5)));
+            keyFrames.KeyFrames.Add(new EasingDoubleKeyFrame(4, KeyTime.FromPercent(0.6)));
+            keyFrames.KeyFrames.Add(new EasingDoubleKeyFrame(-2, KeyTime.FromPercent(0.8)));
+            keyFrames.KeyFrames.Add(new EasingDoubleKeyFrame(0, KeyTime.FromPercent(1.0)));
+
+            tt.BeginAnimation(TranslateTransform.XProperty, keyFrames);
         }
     }
 }
